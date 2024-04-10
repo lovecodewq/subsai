@@ -28,7 +28,6 @@ from functools import wraps
 subs_ai = SubsAI()
 tools = Tools()
 
-
 def timeit(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -73,6 +72,8 @@ def extract_audio(input_video_path, output_audio_path):
     output_audio_path (str): The path where the output mp3 audio file will be saved.
     """
     # Command to extract audio using FFmpeg
+    print(f"[+] Extract audio to {output_audio_path}..")  
+    
     command = [
         'ffmpeg',
         '-i', input_video_path,  # Input video file
@@ -124,36 +125,29 @@ def split_video(video_path, segment_duration):
 
 
 @timeit
-def merge_subtitles_into_video(video_path, subtitle_path_english, subtitle_path_chinese, output_video_path):
+def add_subtitles_to_video(video_path, subtitles_path, output_video_path):
     """
-    Embeds two subtitle files (English and Chinese) into a video file using FFmpeg.
+    Adds an ASS subtitle file to an MP4 video file using FFmpeg, keeping the subtitles as a separate track.
 
     Args:
-    video_path (str): Path to the input video file.
-    subtitle_path_english (str): Path to the English subtitle file.
-    subtitle_path_chinese (str): Path to the Chinese subtitle file.
-    output_video_path (str): Path for the output video file with embedded subtitles.
+    video_path (str): Path to the input MP4 video file.
+    subtitles_path (str): Path to the ASS subtitle file.
+    output_video_path (str): Path for the output MP4 video file with added subtitles.
     """
     command = [
         'ffmpeg',
-        '-i', video_path,  # Input video
-        '-i', subtitle_path_english,  # English subtitle
-        '-i', subtitle_path_chinese,  # Chinese subtitle
-        '-map', '0:v',  # Map video stream
-        '-map', '0:a',  # Map audio stream
-        '-map', '1',  # Map English subtitle stream
-        '-map', '2',  # Map Chinese subtitle stream
-        '-c', 'copy',  # Copy video and audio streams
-        '-c:s', 'mov_text',  # Use mov_text for subtitles (compatible with MP4)
-        '-metadata:s:s:0', 'language=eng',  # Set English subtitle metadata
-        '-metadata:s:s:1', 'language=chi',  # Set Chinese subtitle metadata
+        '-i', video_path,  # Input video file
+        '-i', subtitles_path,  # Input subtitle file
+        '-c', 'copy',  # Copy all streams without re-encoding
+        '-c:s', 'mov_text',  # Convert subtitles to mov_text format compatible with MP4
+        '-metadata:s:s:0', 'language=eng_ch',  # Optional: Set subtitle language to English
         output_video_path  # Output video file
     ]
-
+    
     try:
         # Execute the FFmpeg command
         subprocess.run(command, check=True)
-        print(f"Video with subtitles created at {output_video_path}")
+        print(f"Video with subtitles added created at {output_video_path}")
     except subprocess.CalledProcessError as e:
         print(f"Error occurred: {e}")
 
@@ -163,6 +157,37 @@ def translation(subs,  model_name, configs, source_lang, target_lang):
 
     print('Done translation!')
     return subs
+
+def merge_subtitles_file(file1, file2):
+    # Load the subtitle files
+    subs1 = pysubs2.load(file1)
+    subs2 = pysubs2.load(file2)
+
+    for line in subs2:
+        line.alignment = pysubs2.Alignment.TOP_CENTER
+
+    subs1.events.extend(subs2.events)
+
+    subs1.events.sort(key=lambda x: x.start)
+
+    return subs1
+
+def merge_subtitles(subs1, subs2):
+    # Load the subtitle files
+
+    # Assuming you want to display subs1 at the top and subs2 at the bottom
+    # You might need to adjust positions based on video resolution
+    for line in subs1:
+        line.alignment = pysubs2.Alignment.TOP_CENTER
+        line.marginv = 1  # Margin from the top
+
+    for line in subs2:
+        line.alignment = pysubs2.Alignment.BOTTOM_CENTER
+        line.marginv = 1  # Margin from the bottom
+
+    # Merge the subtitles by appending the second set to the first
+    subs1.extend(subs2)
+    return subs1
 
 
 def run(media_file_arg: List[str],
@@ -203,27 +228,31 @@ def run(media_file_arg: List[str],
             folder = path.parent
             output_audio_file_path = folder / (file.stem + ".mp3")
             # extract audio
-            extract_audio(path, output_audio_file_path)
-            subs = subs_ai.transcribe(output_audio_file_path, model)
             source_subs_file_path = folder / \
                 (file.stem + "_"+source_lang + "."+subs_format)
-            subs.save(source_subs_file_path)
+            # extract_audio(path, output_audio_file_path)
+            # subs = subs_ai.transcribe(output_audio_file_path, model)
+            # subs.save(source_subs_file_path)
 
             # translate
-            translated_subs = tools.translate(subs=subs,
-                                              source_language=source_lang,
-                                              target_language=target_lang,
-                                              model=tr_model,
-                                              translation_configs=tr_configs)
             target_subs_file_path = folder / \
-                (file.stem + "_"+target_lang + "."+subs_format+"srt")
-
-            translated_subs.save(target_subs_file_path)
+                (file.stem + "_"+target_lang + "."+subs_format)
+            # translated_subs = tools.translate(subs=subs,
+            #                                   source_language=source_lang,
+            #                                   target_language=target_lang,
+            #                                   model=tr_model,
+            #                                   translation_configs=tr_configs)
+            # translated_subs.save(target_subs_file_path)
+            # merged_subs = merge_subtitles(subs, translated_subs)
+            merged_subs = merge_subtitles_file(source_subs_file_path,target_subs_file_path)
+            merge_subs_path = folder / \
+                (file.stem + "_" + source_lang + "_" + target_lang + ".ass")
+            merged_subs.save(merge_subs_path)
             # merge subs into vido file
             output_video = folder / \
-                (file.stem + "_" + source_lang + "_" + "target_lang" + ".mp4")
-            merge_subtitles_into_video(
-                path, source_subs_file_path, target_subs_file_path, output_video)
+                (file.stem + "_" + source_lang + "_" + target_lang + ".mp4")
+            add_subtitles_to_video(path, merge_subs_path, output_video)
+            
 
 
 def main():
