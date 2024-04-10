@@ -6,10 +6,9 @@ WORKDIR /subsai
 COPY requirements.txt .
 
 ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get update && \
+RUN apt-get update -o Acquire::Retries=3 && \
+    apt-get install -y --no-install-recommends --fix-missing git gcc mono-mcs && \
     apt-get upgrade -y && \
-    apt-get install -y git && \
-    apt-get -y install gcc mono-mcs && \
     rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -r requirements.txt
@@ -20,5 +19,5 @@ COPY ./assets ./assets
 
 RUN pip install .
 
-ENTRYPOINT ["python", "src/subsai/webui.py", "--server.fileWatcherType", "none", "--browser.gatherUsageStats", "false"]
+# ENTRYPOINT ["python", "src/subsai/webui.py", "--server.fileWatcherType", "none", "--browser.gatherUsageStats", "false"]
 
