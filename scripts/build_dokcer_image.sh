@@ -1,0 +1,1 @@
+docker build -t subsai:20240412 .
