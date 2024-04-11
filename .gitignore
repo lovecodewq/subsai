@@ -132,3 +132,4 @@ dmypy.json
 _docs
 assets
 .vscode
+.DS_Store

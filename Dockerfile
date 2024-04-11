@@ -7,7 +7,7 @@ COPY requirements.txt .
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update -o Acquire::Retries=3 && \
-    apt-get install -y --no-install-recommends --fix-missing git gcc mono-mcs && \
+    apt-get install -y --no-install-recommends --fix-missing git gcc mono-mcs ffmpeg && \
     apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
