@@ -106,8 +106,12 @@ def split_video(video_path, segment_duration, destination_folder):
     video_split_paths = []
     for segment in range(num_segments):
         start_time = segment * segment_duration
+        destination_folder = destination_folder / ("part_"+str(segment))
+        if not destination_folder.exists():
+            print(f"[+] Creating folder: {destination_folder}")
+            os.makedirs(destination_folder, exist_ok=True)
         file_path = destination_folder / (video_path.stem +
-                                          "_p_" + str(segment + 1) + ".mp4")
+                                          "_p_" + str(segment) + ".mp4")
         video_split_paths.append(file_path)
         # FFmpeg command to split the video
         cmd = [
@@ -165,25 +169,17 @@ def merge_subtitles_file(english_file, chinese_file):
     # Load the subtitle files
     english_subs = pysubs2.load(english_file)
     chinese_subs = pysubs2.load(chinese_file)
+    return merge_subtitles(english_subs, chinese_subs)
 
-    # english_subs.styles["EnglishSub"] = pysubs2.SSAStyle()
-    # english_subs.styles["EnglishSub"].alignment = pysubs2.Alignment.BOTTOM_CENTER
-    # english_subs.styles["EnglishSub"].fontsize = 20
-    # english_subs.styles["EnglishSub"].fontname = "Arial"
-    # english_subs.styles["EnglishSub"].MarginV = 30
 
-    # english_subs.styles["ChineseSub"] = pysubs2.SSAStyle()
-    # english_subs.styles["ChineseSub"].alignment = pysubs2.Alignment.BOTTOM_CENTER
-    # english_subs.styles["ChineseSub"].fontsize = 18
-    # english_subs.styles["ChineseSub"].fontname = "Arial"
 
-    # Apply the new style to all English subtitle lines
-    for line in english_subs:
-        line.MarginV = 10
-        line.fontsize = 10
-    for line in chinese_subs:
-        line.MarginV = 0
-        line.fontsize = 10
+def merge_subtitles(english_subs, chinese_subs):
+    # for line in english_subs:
+    #     line.MarginV = 10
+    #     line.fontsize = 10
+    # for line in chinese_subs:
+    #     line.MarginV = 0
+    #     line.fontsize = 10
 
     # Merge Chinese subtitles into English subtitles
     english_subs.events.extend(chinese_subs.events)
@@ -192,25 +188,6 @@ def merge_subtitles_file(english_file, chinese_file):
     english_subs.events.sort(key=lambda x: x.start)
 
     return english_subs
-
-
-def merge_subtitles(subs1, subs2):
-    # Load the subtitle files
-
-    # Assuming you want to display subs1 at the top and subs2 at the bottom
-    # You might need to adjust positions based on video resolution
-    for line in subs1:
-        line.alignment = pysubs2.Alignment.TOP_CENTER
-        line.marginv = 1  # Margin from the top
-
-    for line in subs2:
-        line.alignment = pysubs2.Alignment.BOTTOM_CENTER
-        line.marginv = 1  # Margin from the bottom
-
-    # Merge the subtitles by appending the second set to the first
-    subs1.extend(subs2)
-    return subs1
-
 
 def run(media_file_arg: List[str],
         model_name,
@@ -247,7 +224,7 @@ def run(media_file_arg: List[str],
             continue
         # split video file
         if not destination_folder:
-            destination_folder = file.parent / (file.stem + "_prcocessed")
+            destination_folder = file.parent / (file.stem + "_processed")
         else:
             destination_folder = Path(destination_folder).absolute()
         if not destination_folder.exists():
@@ -264,19 +241,20 @@ def run(media_file_arg: List[str],
                 os.makedirs(destination_folder, exist_ok=True)
             output_audio_file_path = destination_folder / (file_name + ".mp3")
             # extract audio
-            subtitle_folder = destination_folder / "subtitles"
-            if not subtitle_folder.exists():
-                print(f"[+] Creating folder: {subtitle_folder}")
-                os.makedirs(subtitle_folder, exist_ok=True)
-            source_subs_file_path = subtitle_folder / \
-                (file_name + "_"+source_lang[:2].lower() + "."+subs_format)
-
+            print(f"-----------------------------------------------------------")
+            print(f"[+] Etract video ..")
             extract_audio(path, output_audio_file_path)
 
             print(f"-----------------------------------------------------------")
             print(f"[+] Transcribe ..")
+            subtitle_folder = destination_folder
+            if not subtitle_folder.exists():
+                print(f"[+] Creating folder: {subtitle_folder}")
+                os.makedirs(subtitle_folder, exist_ok=True)
+            source_subs_file_path = subtitle_folder / \
+                (file_name + "_" + source_lang[:2].lower() + "."+subs_format)
             subs = subs_ai.transcribe(output_audio_file_path, model)
-            subs.save(source_subs_file_path)
+            # subs.save(source_subs_file_path)
 
             # translate
             print(f"-----------------------------------------------------------")
@@ -288,12 +266,13 @@ def run(media_file_arg: List[str],
                                               target_language=target_lang,
                                               model=tr_model,
                                               translation_configs=tr_configs)
-            translated_subs.save(translated_subs_file_path)
-            # merged_subs = merge_subtitles(subs, translated_subs)
+            # translated_subs.save(translated_subs_file_path)
+            merged_subs = merge_subtitles(subs, translated_subs)
+
             print(f"-----------------------------------------------------------")
             print(f"[+] Merge subtitile files..")
-            merged_subs = merge_subtitles_file(
-                source_subs_file_path, translated_subs_file_path)
+            # merged_subs = merge_subtitles_file(
+            #     source_subs_file_path, translated_subs_file_path)
             merge_subs_path = subtitle_folder / \
                 (file_name + "_" + source_lang[:2].lower() +
                  "_" + target_lang[:2].lower() + "." + subs_format)
@@ -302,7 +281,8 @@ def run(media_file_arg: List[str],
             # output_video = destination_folder / \
             #     (file_name + "_" + source_lang[:2].lower() + "_" + target_lang[:2].lower() + ".mp4")
             # add_subtitles_to_video(path, merge_subs_path, output_video)
-            print(f"---")
+            print(f"-----------------------------------------------------------")
+            print(f"Subtitle file path: {merge_subs_path}")
             print(f"Done!")
 
 
