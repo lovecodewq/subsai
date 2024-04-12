@@ -48,6 +48,8 @@ COPY ./src ./src
 COPY ./assets ./assets
 
 RUN pip install .
+RUN pip install python-dotenv
+RUN apt-get update && apt-get install -y fonts-wqy-zenhei
 
 # ENTRYPOINT or CMD as needed
 # ENTRYPOINT ["python", "src/subsai/webui.py", "--server.fileWatcherType", "none", "--browser.gatherUsageStats", "false"]

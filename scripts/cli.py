@@ -27,7 +27,7 @@ from functools import wraps
 
 subs_ai = SubsAI()
 tools = Tools()
-
+Ffmpeg_bin="/usr/local/bin/ffmpeg"
 
 def timeit(func):
     @wraps(func)
@@ -76,29 +76,32 @@ def extract_audio(input_video_path, output_audio_path):
     print(f"[+] Extract audio to {output_audio_path}..")
 
     command = [
-        'ffmpeg',
+        Ffmpeg_bin,
         '-i', input_video_path,  # Input video file
         '-vn',  # Exclude video
         '-acodec', 'libmp3lame',  # MP3 audio codec
         '-q:a', '2',
         output_audio_path  # Output audio file
     ]
-
     try:
         # Execute the FFmpeg command
-        subprocess.run(command, check=True)
-        print(f"Audio extracted and saved to {output_audio_path}")
+        result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(f"Video with subtitles added created at {output_audio_path}")
     except subprocess.CalledProcessError as e:
-        print(f"Error occurred: {e}")
+        print(f"Error occurred: {e}\nOutput:\n{e.stdout}\nErrors:\n{e.stderr}")
 
 
 @timeit
 def split_video(video_path, segment_duration, destination_folder):
     # Use FFmpeg to get the total duration of the video in seconds
-    cmd = ['ffprobe', '-v', 'error', '-show_entries',
+    command = ['ffprobe', '-v', 'error', '-show_entries',
            'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
            video_path]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+    try:
+        # Execute the FFmpeg command
+        result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred: {e}\nOutput:\n{e.stdout}\nErrors:\n{e.stderr}")
     total_duration = float(result.stdout)
 
     # Calculate the number of segments
@@ -114,14 +117,17 @@ def split_video(video_path, segment_duration, destination_folder):
                                           "_p_" + str(segment) + ".mp4")
         video_split_paths.append(file_path)
         # FFmpeg command to split the video
-        cmd = [
-            'ffmpeg', '-y', '-i', video_path,
+        command = [
+            Ffmpeg_bin, '-y', '-i', video_path,
             '-ss', str(start_time),
             '-t', str(segment_duration),
             '-c', 'copy',
             file_path
         ]
-        subprocess.run(cmd)
+        try:
+            result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            print(f"Error occurred: {e}\nOutput:\n{e.stdout}\nErrors:\n{e.stderr}")
         print(f'Segment {segment + 1} created.')
         if len(video_split_paths) == 1:
             return video_split_paths
@@ -140,19 +146,19 @@ def add_subtitles_to_video(video_path, subtitles_path, output_video_path):
     output_video_path (str): Path for the output MP4 video file with added subtitles.
     """
     command = [
-        'ffmpeg',
+        Ffmpeg_bin,
         '-i', str(video_path),  # Input video file
         # Filter to burn subtitles
         '-vf', f"subtitles='{str(subtitles_path)}'",
-        # '-c:v', 'libx264',  # Specify video codec as H.264
-        '-max_muxing_queue_size', '1024',  # Adjust the muxing buffer size
+        '-c:v', 'libx264',  # Specify video codec as H.264
+        '-crf', '20',
         '-c:a', 'copy',                  # Copy the audio without re-encoding
         str(output_video_path)  # Output video file
     ]
 
     try:
         # Execute the FFmpeg command
-        subprocess.run(command, check=True)
+        result = subprocess.run(command, check=True)
         print(f"Video with subtitles added created at {output_video_path}")
     except subprocess.CalledProcessError as e:
         print(f"Error occurred: {e}")
@@ -172,7 +178,6 @@ def merge_subtitles_file(english_file, chinese_file):
     return merge_subtitles(english_subs, chinese_subs)
 
 
-
 def merge_subtitles(english_subs, chinese_subs):
     # for line in english_subs:
     #     line.MarginV = 10
@@ -188,6 +193,7 @@ def merge_subtitles(english_subs, chinese_subs):
     english_subs.events.sort(key=lambda x: x.start)
 
     return english_subs
+
 
 def run(media_file_arg: List[str],
         model_name,
@@ -278,9 +284,12 @@ def run(media_file_arg: List[str],
                  "_" + target_lang[:2].lower() + "." + subs_format)
             merged_subs.save(merge_subs_path)
             # merge subs into vido file
-            # output_video = destination_folder / \
-            #     (file_name + "_" + source_lang[:2].lower() + "_" + target_lang[:2].lower() + ".mp4")
-            # add_subtitles_to_video(path, merge_subs_path, output_video)
+            print(f"-----------------------------------------------------------")
+            print(f"[+] Merge into video..")
+            output_video = destination_folder.parent / \
+                (file_name + "_" +
+                 source_lang[:2].lower() + "_" + target_lang[:2].lower() + ".mp4")
+            add_subtitles_to_video(path, merge_subs_path, output_video)
             print(f"-----------------------------------------------------------")
             print(f"Subtitle file path: {merge_subs_path}")
             print(f"Done!")

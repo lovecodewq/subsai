@@ -1,4 +1,4 @@
-DOCKER_IMAGE=subsai:20240411
+DOCKER_IMAGE=subsai:20240412
 docker rm subsai
 docker run -itd --name subsai \
 -v /home/wenqiangli/code/subsai:/subsai \
