@@ -153,6 +153,7 @@ def add_subtitles_to_video(video_path, subtitles_path, output_video_path):
         '-c:v', 'libx264',  # Specify video codec as H.264
         '-crf', '20',
         '-c:a', 'copy',                  # Copy the audio without re-encoding
+        '-max_muxing_queue_size', '1024',
         str(output_video_path)  # Output video file
     ]
 
@@ -260,7 +261,7 @@ def run(media_file_arg: List[str],
             source_subs_file_path = subtitle_folder / \
                 (file_name + "_" + source_lang[:2].lower() + "."+subs_format)
             subs = subs_ai.transcribe(output_audio_file_path, model)
-            # subs.save(source_subs_file_path)
+            subs.save(source_subs_file_path)
 
             # translate
             print(f"-----------------------------------------------------------")
@@ -273,12 +274,12 @@ def run(media_file_arg: List[str],
                                               model=tr_model,
                                               translation_configs=tr_configs)
             # translated_subs.save(translated_subs_file_path)
-            merged_subs = merge_subtitles(subs, translated_subs)
 
             print(f"-----------------------------------------------------------")
             print(f"[+] Merge subtitile files..")
             # merged_subs = merge_subtitles_file(
             #     source_subs_file_path, translated_subs_file_path)
+            merged_subs = merge_subtitles(subs, translated_subs)
             merge_subs_path = subtitle_folder / \
                 (file_name + "_" + source_lang[:2].lower() +
                  "_" + target_lang[:2].lower() + "." + subs_format)
