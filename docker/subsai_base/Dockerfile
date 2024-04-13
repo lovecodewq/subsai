@@ -7,6 +7,9 @@ COPY requirements.txt .
 # RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing && \
 #     libmp3lame0 libopus0 libvorbis0a git gcc mono-mcs && apt-get upgrade -y && \
 #     pip install --no-cache-dir -r requirements.txt && pip install . && apt-get clean && rm -rf /var/lib/apt/lists/* \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git gcc make nasm yasm && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN pip install git+https://github.com/abdeladim-s/subsai
 RUN apt-get update && \
     apt-get install -y \
@@ -37,6 +40,6 @@ RUN apt-get update && \
     --enable-libx264 --enable-libx265 --enable-nonfree --disable-debug --disable-doc \
     --enable-libvpx --enable-libfdk-aac &&\
     make -j$(nproc) && \
-    make install
+    make install && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY ./src ./src
