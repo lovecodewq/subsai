@@ -15,6 +15,7 @@ fi
 function build() {
   TEMP_DIR="/tmp/subs_ai_base"
   mkdir -p "$TEMP_DIR"
+  cp -r "${ROOT_DIR}/src" "$TEMP_DIR/"
   cp "$DOCKER_FILE" "$TEMP_DIR"
   cp "${ROOT_DIR}/docker/subsai_base/requirements.txt" "$TEMP_DIR"
   cd "$TEMP_DIR" || exit 1

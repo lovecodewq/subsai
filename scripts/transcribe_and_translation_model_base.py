@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-"""
-SubsAI Command Line Interface (cli)
-"""
 import argparse
 import importlib.metadata
 __license__ = "GPLv3"
@@ -15,9 +11,6 @@ import os
 import json
 import pysubs2
 import time
-from openai import OpenAI
-from dotenv import load_dotenv
-
 
 from pathlib import Path
 from subsai import SubsAI
@@ -25,92 +18,10 @@ from subsai import SubsAI, Tools
 from subsai.utils import available_translation_models, available_subs_formats
 from functools import wraps
 
-load_dotenv()  # This loads the environment variables from .env
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-PLACEHOLDER='@#$%^&'
 subs_ai = SubsAI()
 tools = Tools()
 Ffmpeg_bin="/usr/local/bin/ffmpeg"
 SPLIT_DURATION = 600  # second
-
-
-def process_subtitles(input_subtitles):
-    translated_lines = translate_text(input_subtitles, PLACEHOLDER)
-    # print('----------------------------------------------------')
-    # for item in translated_lines:
-    #     print(item)
-    # print('----------------------------------------------------')
-
-    # print("l1 ", len(input_subtitles))
-    # print("l2 ", len(translated_lines))
-
-    # Create a new list to hold all subtitle events
-    new_subs = pysubs2.SSAFile()
-    # Iterate through the original and translated subtitles
-    # for sub, chinese_text in zip(input_subtitles, translated_lines):
-    #     # Append original subtitle line (English)
-    #     new_subs.append(sub)
-    #     print(chinese_text)
-    #     time_info, translated_text = chinese_text.split(': ', 1)
-    #     # Create a new subtitle event for the Chinese translation
-    #     translated_sub = pysubs2.SSAEvent(
-    #         start=sub.start, end=sub.end, style=sub.style)
-    #     translated_sub.text = translated_text
-    #     new_subs.append(translated_sub)
-    # new_subs.events.sort(key=lambda x: x.start)
-    # new_subs.save(output_file)
-    return new_subs
-
-def translate_text(subtitles, placeholder):
-    PROMPT_MSG = (
-        f'You will translate English to Chinese from a concatenated text of subtitles with sepcific format. You will retain the format trictly'
-        f'Each English subtitle has format: TIMESTAMP:[tart_time],TEXTBODY: [text], and concatenated together by a placeholder, which is {placeholder} in our case'
-        f'The user give you that concatednated text,you will only replace the English text which is shown after the "TEXTBODY: ".'
-        f'Pelease do not change order and format, such as TIMESTAMP:[tart_time]: " and the placeholder between each message.'
-        f'You should check the number of placeholder after translation, it should be the same.'
-     )
-
-    num_limits=30
-    concatenated_text = ''
-    for i in range(len(subtitles)):
-        sub = subtitles[i]
-        msg = f"TIMESTAMP:{sub.start},TEXTBODY: {sub.text} {placeholder}"
-        print(msg)
-        concatenated_text = concatenated_text + msg
-        if i > num_limits:
-            break
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo-0125",
-            messages=[
-                {"role": "system", "content": PROMPT_MSG},
-                {"role": "user", "content": concatenated_text},
-            ]
-        )
-        print("concatenated_text have placeholder ", concatenated_text.count(placeholder))
-        
-        # match completions to prompts by index
-        # for choice in response.choices:
-        #     stories[choice.index] = prompts[choice.index] + choice.text
-        translated_content = response.choices[0].message.content
-        print("translated_content have placeholder ", translated_content.count(placeholder))
-        
-        concatenated_text_test = concatenated_text.split(placeholder)
-        translated_content_test = translated_content.split(placeholder)
-        for eng, ch in zip(concatenated_text_test, translated_content_test):
-            print(eng)
-            print(ch)
-        # if concatenated_text.count(placeholder) != translated_content.count(placeholder):
-        #     raise ValueError("Placeholder count mismatch after translation.")
-        return translated_content.split(placeholder)
-    except Exception as e:
-        if "429" in str(e):  # Check if the error is due to rate limiting
-            print(f"Rate limit hit, retrying in {delay} seconds...")
-            time.sleep(delay)
-            attempts += 1
-            delay *= 2  # Exponential backoff
-        print(f"An error occurred during translation: {e}")
-        return None
 
 def timeit(func):
     @wraps(func)
@@ -248,13 +159,6 @@ def add_subtitles_to_video(video_path, subtitles, output_video_path):
         print(f"Video with subtitles added created at {output_video_path}")
     except subprocess.CalledProcessError as e:
         print(f"Error occurred: {e}")
-
-
-@timeit
-def translation(subs,  model_name, configs, source_lang, target_lang):
-
-    print('Done translation!')
-    return subs
 
 
 def merge_subtitles_file(english_file, chinese_file):
