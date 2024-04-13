@@ -299,8 +299,7 @@ def run(media_file_arg: List[str],
 
     print(f"[+] Creating translation model: {translation_model_name}")
     tr_model = None
-    print("is_translate", is_translate)
-    exit(0)
+
     if is_translate:
         tr_model = tools.create_translation_model(translation_model_name)
     print(
@@ -430,7 +429,7 @@ def main():
                         help="burn the script into the video")
     parser.add_argument('-it', '--is-translate', default=True, type=bool,
                         help="is translate the subtitles")
-    parser.add_argument('-nt', '--no-translate', action='store_false', dest='is-translate',
+    parser.add_argument('-nt', '--no-translate', action='store_false', dest='is_translate',
                     help="Disable translation of the subtitles")
     args = parser.parse_args()
 
