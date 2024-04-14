@@ -4,21 +4,19 @@ if [ -f /.dockerenv ]; then
 fi
 
 CONTAINER_NAME="subsai"
-VIDEO_FILE="assets/video/john_danaher_advice_for_grapplers.mp4"
-OUTPUT_DIR="assets/video/john_danaher_advice_for_grapplers"
+VIDEO_FILE="assets/video/alex_interview.mp4"
+OUTPUT_DIR="assets/video/alex_interview"
 COMMAND="python3 scripts/transcribe_and_translation_model_base.py \
 ${VIDEO_FILE} \
 --model guillaumekln/faster-whisper \
 --model-configs '{\"model_type\": \"base.en\"}' \
 --translation-model-name facebook/m2m100_418M \
 --destination-folder ${OUTPUT_DIR} \
---format ass \
---is-translate=False \
+--format srt \
 --source-lang English \
 --target-lang Chinese \
---is-burn-to-video=False \
---is_save_merge_subtitles=True \
---split-duration 60"
+--no-burn \
+--split-duration 600"
 
 # Execute the command inside the Docker container
 echo "${COMMAND}"

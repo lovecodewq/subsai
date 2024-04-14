@@ -103,11 +103,11 @@ def split_video(video_path, segment_duration, destination_folder):
     split_video_paths = []
     for segment in range(num_segments):
         start_time = segment * segment_duration
-        destination_folder = destination_folder / ("part_"+str(segment))
-        if not destination_folder.exists():
-            print(f"[+] Creating folder: {destination_folder}")
-            os.makedirs(destination_folder, exist_ok=True)
-        file_path = destination_folder / (video_path.stem +
+        output_foler = output_foler / ("part_"+str(segment))
+        if not output_foler.exists():
+            print(f"[+] Creating folder: {output_foler}")
+            os.makedirs(output_foler, exist_ok=True)
+        file_path = output_foler / (video_path.stem +
                                           "_p_" + str(segment) + ".mp4")
         split_video_paths.append(file_path)
         # FFmpeg command to split the video
@@ -123,8 +123,6 @@ def split_video(video_path, segment_duration, destination_folder):
         except subprocess.CalledProcessError as e:
             print(f"Error occurred: {e}\nOutput:\n{e.stdout}\nErrors:\n{e.stderr}")
         print(f'Segment {segment + 1} created.')
-        if len(split_video_paths) == 1:
-            return split_video_paths
     print('All segments created.')
     return split_video_paths
 
@@ -334,6 +332,8 @@ def main():
     parser.add_argument('-it', '--is-translate', default=True, type=bool,
                         help="is translate the subtitles")
     parser.add_argument('-nt', '--no-translate', action='store_false', dest='is_translate',
+                    help="Disable translation of the subtitles")
+    parser.add_argument('-nb', '--no-burn', action='store_false', dest='is_burn_to_video',
                     help="Disable translation of the subtitles")
     args = parser.parse_args()
 
