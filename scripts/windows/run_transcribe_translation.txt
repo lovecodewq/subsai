@@ -1,0 +1,5 @@
+
+docker stop subsai
+docker rm subsai
+docker run -itd --name subsai -v  C:\Users\wenqiangli\Desktop\code\subsai:/subsai -w /subsai subsai /bin/bash
+docker exec subsai /bin/bash -c "python3 scripts/transcribe_and_translation_model_base.py --input-dir ./assets/video --translation-model-name facebook/m2m100_418M  --target-lang Chinese"

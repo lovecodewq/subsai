@@ -21,7 +21,6 @@ from functools import wraps
 subs_ai = SubsAI()
 tools = Tools()
 Ffmpeg_bin="/usr/local/bin/ffmpeg"
-SPLIT_DURATION = 600  # second
 
 def timeit(func):
     @wraps(func)
@@ -32,21 +31,6 @@ def timeit(func):
         print(f"{func.__name__} took {end_time - start_time} seconds to complete.")
         return result
     return wrapper
-
-
-def _handle_media_file(media_file_arg: List[str]):
-    res = []
-    for file in media_file_arg:
-        if file.endswith('.txt'):
-            with open(file, 'r') as f:
-                lines = f.readlines()
-                for line in lines:
-                    if line == '':
-                        continue
-                    res.append(Path(line.strip()).resolve())
-        else:
-            res.append(Path(file).resolve())
-    return res
 
 
 def _handle_configs(model_configs_arg: str):
@@ -176,19 +160,16 @@ def merge_subtitles(english_subs, chinese_subs):
     return english_subs
 
 
-def run(media_file_arg: List[str],
+def run(video_dir: str,
         model_name,
         model_configs,
-        destination_folder,
         subs_format,
         translation_model_name,
         translation_configs,
         source_lang,
         target_lang,
         split_duration,
-        is_burn_to_video,
-        is_save_merge_subtitles,
-        is_translate
+        is_burn_to_video
         ):
     model_configs = _handle_configs(model_configs)
     print(f"[-] Model name: {model_name}")
@@ -199,27 +180,26 @@ def run(media_file_arg: List[str],
     print(f"[+] Initializing the model")
     model = subs_ai.create_model(model_name, model_configs)
 
-    print(f"[+] Creating translation model: {translation_model_name}")
     tr_model = None
-
-    if is_translate:
+    tr_configs = {}
+    if translation_model_name and source_lang and target_lang:
+        print(f"-----------------------------------------------------------")
+        print(f"[+] Creating translation model: {translation_model_name}")
         tr_model = tools.create_translation_model(translation_model_name)
-    print(
-        f"[+] Translating from: {source_lang} to {target_lang}")
-    tr_configs = _handle_configs(translation_configs)
+        print(
+            f"[+] Translating from: {source_lang} to {target_lang}")
+        tr_configs = _handle_configs(translation_configs)
 
-    files = _handle_media_file(media_file_arg)
-    
-    for file in files:
-        print(f"[+] Processing file: {file}")
-        if not file.exists():
-            print(f"[*] Error: {file} does not exist -> continue")
-            continue
-        # split video file
-        if not destination_folder:
-            destination_folder = file.parent / (file.stem + "_processed")
-        else:
-            destination_folder = Path(destination_folder).absolute()
+    input_directory_path = Path(video_dir).absolute()
+    # Check if the directory exists
+    if not input_directory_path.exists() or not input_directory_path.is_dir():
+        print(f"The directory {input_directory_path} does not exist or is not a directory.")
+        exit(1)
+
+    # Iterate over .mp4 files in the directory
+    for video_file in input_directory_path.glob('*.mp4'):
+        print(f"[+] Processing video file: {video_file}")
+        destination_folder = video_file.parent / (video_file.stem + "_processed")
         if not destination_folder.exists():
             print(f"[+] Creating folder: {destination_folder}")
             os.makedirs(destination_folder, exist_ok=True)
@@ -228,59 +208,49 @@ def run(media_file_arg: List[str],
             print(f"-----------------------------------------------------------")
             print(f"[+] Split video..")
             split_video_paths = split_video(
-                file, split_duration, destination_folder)
+                video_file, split_duration, destination_folder)
         else:
-            copied_video = destination_folder / file.name
-            status = subprocess.call(f'cp {file} {copied_video}', shell=True)
+            copied_video = destination_folder / video_file.name
+            status = subprocess.call(f'cp {video_file} {copied_video}', shell=True)
             split_video_paths.append(copied_video)
         for video_path in split_video_paths:
             file_name = video_path.stem
             destination_folder = video_path.parent
-            if not destination_folder.exists():
-                print(f"[+] Creating folder: {destination_folder}")
-                os.makedirs(destination_folder, exist_ok=True)
-            output_audio_file_path = destination_folder / (file_name + ".mp3")
-            # extract audio
-            print(f"-----------------------------------------------------------")
-            print(f"[+] Etract video ..")
-            extract_audio(video_path, output_audio_file_path)
+            # output_audio_file_path = destination_folder / (file_name + ".mp3")
+            # # extract audio
+            # print(f"-----------------------------------------------------------")
+            # print(f"[+] Etract video ..")
+            # extract_audio(video_path, output_audio_file_path)
 
             print(f"-----------------------------------------------------------")
             print(f"[+] Transcribe ..")
-            subtitle_folder = destination_folder
-            if not subtitle_folder.exists():
-                print(f"[+] Creating folder: {subtitle_folder}")
-                os.makedirs(subtitle_folder, exist_ok=True)
-            source_subs_file_path = subtitle_folder / \
+            source_subs_file_path = destination_folder / \
                 (file_name + "_" + source_lang[:2].lower() + "."+subs_format)
-            english_subtitles = subs_ai.transcribe(output_audio_file_path, model)
+            english_subtitles = subs_ai.transcribe(video_file, model)
             english_subtitles.save(source_subs_file_path)
             if not tr_model:
                 continue
 
-            # translate
             print(f"-----------------------------------------------------------")
             print(f"[+] Translate subtitles..")
-            translated_subs_file_path = subtitle_folder / \
+            translated_subs_file_path = destination_folder / \
                 (file_name + "_"+target_lang[:2].lower() + "."+subs_format)
             translated_subs = tools.translate(subs=english_subtitles,
                                               source_language=source_lang,
                                               target_language=target_lang,
                                               model=tr_model,
                                               translation_configs=tr_configs)
-            # translated_subs.save(translated_subs_file_path)
- 
+            translated_subs.save(translated_subs_file_path)
+            print(f"Subtitle file path: {translated_subs_file_path}")
+
             print(f"-----------------------------------------------------------")
             print(f"[+] Merge subtitile files..")
-            # merged_subs = merge_subtitles_file(
-            #     source_subs_file_path, translated_subs_file_path)
             merged_subs = merge_subtitles(english_subtitles, translated_subs)
-            merge_subs_path = subtitle_folder / \
+            merge_subs_path = destination_folder / \
                 (file_name + "_" + source_lang[:2].lower() +
                  "_" + target_lang[:2].lower() + "." + subs_format)
-            if is_save_merge_subtitles:
-                merged_subs.save(merge_subs_path)
-                print(f"Subtitle file path: {merge_subs_path}")
+            merged_subs.save(merge_subs_path)
+            print(f"Subtitle file path: {merge_subs_path}")
 
             if is_burn_to_video:
                 # merge subs into vido file
@@ -290,21 +260,18 @@ def run(media_file_arg: List[str],
                     (file_name + "_" +
                     source_lang[:2].lower() + "_" + target_lang[:2].lower() + ".mp4")
                 add_subtitles_to_video(video_path, merged_subs, output_video)
-            print(f"Done!")
 
 
 def main():
     parser = argparse.ArgumentParser(description="", allow_abbrev=True)
-    # Positional args
-    parser.add_argument('media_file', type=str, nargs='+', help="The path of the media file, a list of files, or a "
+    parser.add_argument('--input-dir', type=str, default=None, help="The path of the media file, a list of files, or a "
                                                                 "text file containing paths for batch processing.")
 
-    # Optional args
     parser.add_argument('--version', action='version',
                         version=f'%(prog)s {__version__}')
     parser.add_argument('-m', '--model', default=SubsAI.available_models()[0],
                         help=f'The transcription AI models. Available models: {SubsAI.available_models()}')
-    parser.add_argument('-mc', '--model-configs', default="{}",
+    parser.add_argument('-mc', '--model-configs', default='{"model_type": "base.en"}',
                         help="JSON configuration (path to a json file or a direct "
                              "string)")
     parser.add_argument('-f', '--format', '--subtitles-format', default='srt',
@@ -317,7 +284,7 @@ def main():
                         help=f"Translate subtitles using AI models, available "
                              f"models: {available_translation_models()}", )
     parser.add_argument('-tsl', '--source-lang',
-                        default=None, help="Source language of the subtitles")
+                        default='English', help="Source language of the subtitles")
     parser.add_argument('-ttl', '--target-lang',
                         default=None, help="Target language of the subtitles")
     parser.add_argument('-tc', '--translation-configs', default="{}",
@@ -327,29 +294,20 @@ def main():
                         help="split video file give a sepecific duration")
     parser.add_argument('-ibtv', '--is-burn-to-video', default=False, type=bool,
                         help="burn the script into the video")
-    parser.add_argument('-isms', '--is-save_merge-subtitles', default=True, type=bool,
-                        help="burn the script into the video")
-    parser.add_argument('-it', '--is-translate', default=True, type=bool,
-                        help="is translate the subtitles")
-    parser.add_argument('-nt', '--no-translate', action='store_false', dest='is_translate',
-                    help="Disable translation of the subtitles")
-    parser.add_argument('-nb', '--no-burn', action='store_false', dest='is_burn_to_video',
-                    help="Disable translation of the subtitles")
     args = parser.parse_args()
 
-    run(media_file_arg=args.media_file,
+    run(video_dir=args.input_dir,
         model_name=args.model,
         model_configs=args.model_configs,
-        destination_folder=args.destination_folder,
         subs_format=args.format,
         translation_model_name=args.translation_model_name,
         translation_configs=args.translation_configs,
         source_lang=args.source_lang,
         target_lang=args.target_lang,
         split_duration=args.split_duration,
-        is_burn_to_video=args.is_burn_to_video,
-        is_save_merge_subtitles=args.is_save_merge_subtitles,
-        is_translate = args.is_translate)
+        is_burn_to_video=args.is_burn_to_video)
+    print(f"-----------------------------------------------------------")
+    print(f"Done!")
 
 
 if __name__ == '__main__':
